@@ -1,11 +1,13 @@
 module Main where
 
+import           Data.Char   (toLower)
 import           Data.List
-import qualified Data.Map   as Map
+import qualified Data.Map    as Map
 import           Data.Maybe
 import           Data.Ord
+import           System.Exit (exitSuccess)
 
-data Tree a = Leaf a | Node a (Tree a) (Tree a) deriving (Show)
+data Tree a = Leaf a | Node a (Tree a) (Tree a) deriving (Show, Read)
 
 instance Eq a => Eq (Tree a) where
     (==) a b     = case a of
@@ -75,13 +77,14 @@ encodeInner l l1
     | otherwise = "~"
 
 encode :: String -> (Tree (String, Int) -> Tree (String, Int) -> Bool) -> (Tree (String, Int), String)
-encode str predicate = let  freqLst = getFrequencyList str
-                            leafs = map Leaf freqLst
-                            huffmanTree = head $ getHuffmanTree leafs predicate
-                            huffmanCodes = [(nodeKey leaf, encodeInner leaf huffmanTree) | leaf <- leafs]
-                            {- I can't seem to make Haskell accept just letter here instead of [letter] -}
-                            word = intercalate "" $ map (\letter -> fromJust (lookup [letter] huffmanCodes)) str
-             in (huffmanTree, word)
+encode str predicate
+    | null str      = (Leaf ("", 1), "")
+    | otherwise     = let       freqLst = getFrequencyList str
+                                leafs = map Leaf freqLst
+                                huffmanTree = head $ getHuffmanTree leafs predicate
+                                huffmanCodes = [(nodeKey leaf, encodeInner leaf huffmanTree) | leaf <- leafs]
+                                word = intercalate "" $ map (\letter -> fromJust (lookup [letter] huffmanCodes)) str
+                      in (huffmanTree, word)
 
 decode :: String -> Tree (String, Int) -> String
 decode encodedWord huffmanTree
@@ -91,13 +94,37 @@ decode encodedWord huffmanTree
             symbol = fst symbolTuple
             usedSymbolsNum = snd symbolTuple
 
-main=do
-    putStrLn "Enter string:"
-    str <- getLine
-    {- str = "abracadabra" -}
-    let encodedWord = encode str (==)
-    print encodedWord
-    let decodedWord = decode (snd encodedWord) (fst encodedWord)
+{- ~"Public" API -}
+
+
+encodeMain = do
+    print "[ENCODE] Enter name of a file from which to READ:"
+    encodeInFileName <- getLine
+    contents <- readFile encodeInFileName
+    let encodedWord = encode contents (==)
+    print "Text encoded."
+    print "[ENCODE] Enter name of a file where to WRITE encoded data:"
+    encodeOutFileName <- getLine
+    writeFile encodeOutFileName (show encodedWord)
+
+decodeMain = do
+    print "[DECODE] Enter name of a file from which to READ:"
+    decodeInFileName <- getLine
+    encodedString <- readFile decodeInFileName
+    let encodedData = read encodedString :: (Tree (String, Int), String)
+    let decodedWord = decode (snd encodedData) (fst encodedData)
+    print "Decoded Data:"
     print decodedWord
+
+decide s
+    | s == "encode" || s == "e" = encodeMain
+    | s == "decode" || s == "d" = decodeMain
+    | otherwise                 = exitSuccess
+
+main=do
+    print "What do you want to do?(Encode/Decode)"
+    answer <- getLine
+    decide $ map toLower answer
+    main
     return ()
 
